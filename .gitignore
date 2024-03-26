@@ -1,0 +1,7 @@
+data/
+figs/
+models/
+preds/
+wandb/
+checkpoints/
+__pycache__/
