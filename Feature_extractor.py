@@ -20,7 +20,7 @@ def parse_args():
     parser.add_argument('--output_dir', type=str, default='../data_clean/', help='Directory to save the output files')
     return parser.parse_args()
 
-def train_test_split(ccs_df, test_split=0.1, output_dir="./"):
+def train_test_split(ccs_df, test_split=0.1, output_dir="./", info=""):
     X_matrix_count = pd.DataFrame(ccs_df["seq"].apply(Counter).to_dict()).fillna(0.0).T
     # Get all the index identifiers
     all_idx = list(X_matrix_count.index)
@@ -36,8 +36,8 @@ def train_test_split(ccs_df, test_split=0.1, output_dir="./"):
     # Get the train and test indices and point to new variables
     ccs_df_train = ccs_df.loc[train_idx, :]
     ccs_df_test = ccs_df.loc[test_idx, :]
-    ccs_df_train.to_pickle("{}/ccs_df_train.pkl".format(output_dir))
-    ccs_df_test.to_pickle("{}/ccs_df_test.pkl".format(output_dir))
+    ccs_df_train.to_pickle("{}/ccs_df_train_{}.pkl".format(output_dir))
+    ccs_df_test.to_pickle("{}/ccs_df_test_{}.pkl".format(output_dir))
     return ccs_df_train, ccs_df_test
 
 def one_hot_encode(charge):
@@ -64,9 +64,9 @@ def get_features(args):
         ccs_df_valid = pd.read_pickle(args.validset)
     except ValueError:
         if args.valid_needed:
-            ccs_df_train, ccs_df_valid = train_test_split(ccs_df_train, args.valid_split, args.output_dir)
-            ccs_df_valid.to_pickle("{}/ccs_df_valid.pkl".format(args.output_dir))
-            ccs_df_train.to_pickle("{}/ccs_df_train.pkl".format(args.output_dir))
+            ccs_df_train, ccs_df_valid = train_test_split(ccs_df_train, args.valid_split, args.output_dir, args.info)
+            ccs_df_valid.to_pickle("{}/ccs_df_valid_{}.pkl".format(args.output_dir, args.info))
+            ccs_df_train.to_pickle("{}/ccs_df_train_{}.pkl".format(args.output_dir, args.info))
         else:
             ccs_df_valid = None
 

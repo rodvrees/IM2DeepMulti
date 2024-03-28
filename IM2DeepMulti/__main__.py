@@ -17,30 +17,30 @@ from models import IM2DeepMulti
 from prepare_data import prepare_data
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.callbacks import BasePredictionWriter, ModelCheckpoint, ModelSummary, RichProgressBar
-from utils import evaluate_predictions, plot_predictions, MultiOutputLoss, PredictionWriter
+from utils import evaluate_predictions, plot_predictions, MultiOutputLoss, PredictionWriter, WeightedLoss, FlexibleLoss
 
 def main():
     torch.set_float32_matmul_precision('high')
     config = {
-        "name": "Test",
+        "name": "OnlyMultimodals-SymmetricWeightedLoss",
         "time": datetime.now().strftime("%Y-%m-%d_%H-%M-%S"),
-        "batch_size": 64,
+        "batch_size": 32,
         "learning_rate": 0.0001,
         "AtomComp_kernel_size": 4,
         "DiatomComp_kernel_size": 4,
         "One_hot_kernel_size": 4,
-        "AtomComp_out_channels_start": 512,
-        "DiatomComp_out_channels_start": 116,
-        "Global_units": 20,
+        "AtomComp_out_channels_start": 256,
+        "DiatomComp_out_channels_start": 64,
+        "Global_units": 10,
         "OneHot_out_channels": 1,
-        "Concat_units": 94,
+        "Concat_units": 49,
         "AtomComp_MaxPool_kernel_size": 2,
         "DiatomComp_MaxPool_kernel_size": 2,
         "OneHot_MaxPool_kernel_size": 10,
         "LRelu_negative_slope": 0.013545684190756122,
         "LRelu_saturation": 40,
         "L1_alpha": 0.000006056805819927765,
-        "epochs": 100,
+        "epochs": 300,
         "delta": 0,
         "device": "0",
         "Use_best_model": False,
@@ -53,7 +53,8 @@ def main():
         prepare_data(config)
     )
 
-    criterion = MultiOutputLoss()
+    # criterion = MultiOutputLoss(coefficient=0.8)
+    criterion = FlexibleLoss()
 
     model = IM2DeepMulti(config, criterion)
     # pred_writer = PredictionWriter(write_interval="epoch", output_dir="/home/robbe/IM2DeepMulti/preds", config=config)
@@ -105,7 +106,8 @@ def main():
     ccs_df_test["predicted_CCS1"] = predictions[:, 0]
     ccs_df_test["predicted_CCS2"] = predictions[:, 1]
     ccs_df_test.to_csv("/home/robbe/IM2DeepMulti/preds/output/Test-{}-{}.csv".format(config['name'], config['time']), index=False)
+    ccs_df_test.to_pickle("/home/robbe/IM2DeepMulti/preds/Test-{}-{}.pkl".format(config['name'], config['time']))
 
 if __name__ == "__main__":
-    os.environ["WANDB_MODE"] = "dryrun"
+    # os.environ["WANDB_MODE"] = "dryrun"
     main()

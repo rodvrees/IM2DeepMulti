@@ -138,7 +138,8 @@ class IM2DeepMulti(L.LightningModule):
         self.config = config
         self.DeepLCNN = DeepLCNN(self.config)
         self.total_input_size = self.DeepLCNN.total_input_size
-        self.DeepLConcat = DeepLConcat(self.config, self.total_input_size)
+        self.DeepLConcat1 = DeepLConcat(self.config, self.total_input_size)
+        self.DeepLConcat2 = DeepLConcat(self.config, self.total_input_size)
         self.criterion = criterion
 
     def training_step(self, batch, batch_idx):
@@ -147,8 +148,8 @@ class IM2DeepMulti(L.LightningModule):
         y1, y2 = y[:, 0], y[:, 1]
 
         CNN_output = self.DeepLCNN(AtomEnc, DiAtomEnc, Globals, OneHot)
-        y_hat1 = self.DeepLConcat(CNN_output)
-        y_hat2 = self.DeepLConcat(CNN_output)
+        y_hat1 = self.DeepLConcat1(CNN_output)
+        y_hat2 = self.DeepLConcat2(CNN_output)
 
         # Y_hats are of shape (batch_size, 1) but should be (batch_size, )
         y_hat1 = y_hat1.squeeze(1)
@@ -169,8 +170,8 @@ class IM2DeepMulti(L.LightningModule):
         y1, y2 = y[:, 0], y[:, 1]
 
         CNN_output = self.DeepLCNN(AtomEnc, DiAtomEnc, Globals, OneHot)
-        y_hat1 = self.DeepLConcat(CNN_output)
-        y_hat2 = self.DeepLConcat(CNN_output)
+        y_hat1 = self.DeepLConcat1(CNN_output)
+        y_hat2 = self.DeepLConcat2(CNN_output)
 
         y_hat1 = y_hat1.squeeze(1)
         y_hat2 = y_hat2.squeeze(1)
@@ -190,8 +191,8 @@ class IM2DeepMulti(L.LightningModule):
         y1, y2 = y[:, 0], y[:, 1]
 
         CNN_output = self.DeepLCNN(AtomEnc, DiAtomEnc, Globals, OneHot)
-        y_hat1 = self.DeepLConcat(CNN_output)
-        y_hat2 = self.DeepLConcat(CNN_output)
+        y_hat1 = self.DeepLConcat1(CNN_output)
+        y_hat2 = self.DeepLConcat2(CNN_output)
 
         y_hat1 = y_hat1.squeeze(1)
         y_hat2 = y_hat2.squeeze(1)
@@ -209,8 +210,8 @@ class IM2DeepMulti(L.LightningModule):
         AtomEnc, DiAtomEnc, Globals, OneHot, y = batch
 
         CNN_output = self.DeepLCNN(AtomEnc, DiAtomEnc, Globals, OneHot)
-        y_hat1 = self.DeepLConcat(CNN_output)
-        y_hat2 = self.DeepLConcat(CNN_output)
+        y_hat1 = self.DeepLConcat1(CNN_output)
+        y_hat2 = self.DeepLConcat2(CNN_output)
 
         return torch.hstack([y_hat1, y_hat2])
 

@@ -30,8 +30,28 @@ class PredictionWriter(BasePredictionWriter):
         torch.save(predictions, os.path.join(self.output_dir, "{}-{}-predictions.pt".format(self.config["name"], self.config["time"])))
 
 class MultiOutputLoss(nn.Module):
-    def __init__(self):
+    def __init__(self, coefficient):
         super(MultiOutputLoss, self).__init__()
+        self.coefficient = coefficient
+
+    def forward(self, y1, y2, y_hat1, y_hat2):
+        loss_fn = nn.L1Loss()
+
+        if torch.equal(y1, y2):
+            weight = 1 - self.coefficient
+        else:
+            weight = self.coefficient
+
+        loss1 = loss_fn(y_hat1, y1)
+        loss2 = loss_fn(y_hat2, y2)
+
+        # TODO: Loss component for capturing the difference between the two outputs
+        # deltaloss = torch.mean(abs((y_hat1 - y_hat2) - (y1 - y2)))
+        return (loss1 + loss2) * weight
+
+class WeightedLoss(nn.Module):
+    def __init__(self):
+        super(WeightedLoss, self).__init__()
 
     def forward(self, y1, y2, y_hat1, y_hat2):
         loss_fn = nn.L1Loss()
@@ -39,18 +59,53 @@ class MultiOutputLoss(nn.Module):
         loss1 = loss_fn(y_hat1, y1)
         loss2 = loss_fn(y_hat2, y2)
 
-        # TODO: Loss component for capturing the difference between the two outputs
+        # similarity_factor = torch.abs(y1-y2) + 1
 
-        return (loss1 + loss2)
+        # total_loss = (loss1 + loss2) * similarity_factor
+        # total_loss_scalar = torch.mean(total_loss)
+        return loss1 + loss2
+
+class FlexibleLoss(nn.Module):
+    def __init__(self):
+        super(FlexibleLoss, self).__init__()
+
+    def forward(self, y1, y2, y_hat1, y_hat2):
+        diversity_weight = 0.5
+        loss_fn = nn.L1Loss()
+
+        loss1_to_1 = loss_fn(y_hat1, y1)
+        loss2_to_2 = loss_fn(y_hat2, y2)
+        loss1_to_2 = loss_fn(y_hat1, y2)
+        loss2_to_1 = loss_fn(y_hat2, y1)
+
+        loss1 = torch.min(loss1_to_1, loss1_to_2)
+        loss2 = torch.min(loss2_to_2, loss2_to_1)
+
+        diversity_term = torch.mean(torch.abs(y_hat1 - y_hat2))
+        total_loss = (loss1 + loss2) - (diversity_weight * diversity_term)
+
+        return total_loss
 
 def MeanMAE(y1, y2, y_hat1, y_hat2):
-    mae1 = MAE(y1, y_hat1)
-    mae2 = MAE(y2, y_hat2)
+    mae1_to_1 = MAE(y_hat1, y1)
+    mae2_to_2 = MAE(y_hat2, y2)
+    mae1_to_2 = MAE(y_hat1, y2)
+    mae2_to_1 = MAE(y_hat2, y1)
+
+    mae1 = torch.min(mae1_to_1, mae1_to_2)
+    mae2 = torch.min(mae2_to_2, mae2_to_1)
+
     return (mae1 + mae2) / 2
 
 def LowestMAE(y1, y2, y_hat1, y_hat2):
-    mae1 = MAE(y1, y_hat1)
-    mae2 = MAE(y2, y_hat2)
+    mae1_to_1 = MAE(y_hat1, y1)
+    mae2_to_2 = MAE(y_hat2, y2)
+    mae1_to_2 = MAE(y_hat1, y2)
+    mae2_to_1 = MAE(y_hat2, y1)
+
+    mae1 = torch.min(mae1_to_1, mae1_to_2)
+    mae2 = torch.min(mae2_to_2, mae2_to_1)
+
     return min(mae1, mae2)
 
 def MeanPearsonR(y1, y2, y_hat1, y_hat2):
@@ -88,4 +143,15 @@ def plot_predictions(predictions, targets, mean_mae, mean_pearson_r, config):
     axes[1].set_ylabel("Predicted CCS")
     plt.suptitle(f"Mean MAE: {mean_mae}, Mean Pearson R: {mean_pearson_r}")
     plt.savefig("/home/robbe/IM2DeepMulti/figs/{}-{}.png".format(config["name"], config["time"]))
+
+    DeltaPred = abs(predictions1 - predictions2)
+    DeltaCCS = abs(targets1 - targets2)
+
+    fig = plt.figure(figsize=(8,8))
+    plt.scatter(DeltaCCS, DeltaPred, s=3)
+    plt.plot([min(DeltaCCS), max(DeltaCCS)], [min(DeltaCCS), max(DeltaCCS)], color="red")
+    plt.xlabel('Difference between observed CCS')
+    plt.ylabel('Difference between predicted CCS')
+    plt.savefig("/home/robbe/IM2DeepMulti/figs/Deltas-{}-{}.png".format(config['name'], config['time']))
+
 
