@@ -5,3 +5,4 @@ preds/
 wandb/
 checkpoints/
 __pycache__/
+*model.pth

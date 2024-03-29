@@ -13,16 +13,16 @@ from scipy import stats
 import matplotlib.pyplot as plt
 import copy
 import lightning as L
-from models import IM2DeepMulti
+from models import IM2DeepMulti, IM2DeepMultiTransfer
 from prepare_data import prepare_data
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.callbacks import BasePredictionWriter, ModelCheckpoint, ModelSummary, RichProgressBar
-from utils import evaluate_predictions, plot_predictions, MultiOutputLoss, PredictionWriter, WeightedLoss, FlexibleLoss
+from utils import evaluate_predictions, plot_predictions, MultiOutputLoss, PredictionWriter, WeightedLoss, FlexibleLoss, FlexibleLossSorted
 
 def main():
     torch.set_float32_matmul_precision('high')
     config = {
-        "name": "OnlyMultimodals-SymmetricWeightedLoss",
+        "name": "OnlyMultimodals-AllTransferLearnedDualOutputnonBranched",
         "time": datetime.now().strftime("%Y-%m-%d_%H-%M-%S"),
         "batch_size": 32,
         "learning_rate": 0.0001,
@@ -33,7 +33,7 @@ def main():
         "DiatomComp_out_channels_start": 64,
         "Global_units": 10,
         "OneHot_out_channels": 1,
-        "Concat_units": 49,
+        "Concat_units": 94,
         "AtomComp_MaxPool_kernel_size": 2,
         "DiatomComp_MaxPool_kernel_size": 2,
         "OneHot_MaxPool_kernel_size": 10,
@@ -54,9 +54,10 @@ def main():
     )
 
     # criterion = MultiOutputLoss(coefficient=0.8)
+    # criterion = FlexibleLoss()
     criterion = FlexibleLoss()
-
-    model = IM2DeepMulti(config, criterion)
+    # model = IM2DeepMulti(config, criterion)
+    model = IM2DeepMultiTransfer(config, criterion)
     # pred_writer = PredictionWriter(write_interval="epoch", output_dir="/home/robbe/IM2DeepMulti/preds", config=config)
     mcp = ModelCheckpoint(
         filename=config["name"] + "-" + config["time"],
