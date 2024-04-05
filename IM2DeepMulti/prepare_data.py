@@ -15,39 +15,40 @@ import copy
 
 def prepare_data(config):
     # Get data
-    ccs_df_train = pickle.load(open('/home/robbe/IM2DeepMulti/data/ccs_df_train.pkl', 'rb'))
-    Train_AtomEnc = pickle.load(open("/home/robbe/IM2DeepMulti/data/X_train_AtomEnc-OnlyMultimodals.pickle", "rb"))
+    ccs_df_train = pickle.load(open('/home/robbe/IM2DeepMulti/data/ccs_df_train_OnlyMoreMultimodals.pkl', 'rb'))
+    Train_AtomEnc = pickle.load(open("/home/robbe/IM2DeepMulti/data/X_train_AtomEnc-OnlyMoreMultimodals.pickle", "rb"))
     Train_Globals = pickle.load(
-        open("/home/robbe/IM2DeepMulti/data/X_train_GlobalFeatures-OnlyMultimodals.pickle", "rb")
+        open("/home/robbe/IM2DeepMulti/data/X_train_GlobalFeatures-OnlyMoreMultimodals.pickle", "rb")
     )
-    Train_DiAminoAtomEnc = pickle.load(open('/home/robbe/IM2DeepMulti/data/X_train_DiAminoAtomEnc-OnlyMultimodals.pickle', 'rb'))
-    Train_OneHot = pickle.load(open('/home/robbe/IM2DeepMulti/data/X_train_OneHot-OnlyMultimodals.pickle', 'rb'))
-    y_train = pickle.load(open('/home/robbe/IM2DeepMulti/data/y_train-OnlyMultimodals.pickle', 'rb'))
+    Train_DiAminoAtomEnc = pickle.load(open('/home/robbe/IM2DeepMulti/data/X_train_DiAminoAtomEnc-OnlyMoreMultimodals.pickle', 'rb'))
+    Train_OneHot = pickle.load(open('/home/robbe/IM2DeepMulti/data/X_train_OneHot-OnlyMoreMultimodals.pickle', 'rb'))
+    y_train = pickle.load(open('/home/robbe/IM2DeepMulti/data/y_train-OnlyMoreMultimodals.pickle', 'rb'))
 
     y_train = np.vstack(y_train)
 
 
     # Valid
-    ccs_df_valid = pickle.load(open('/home/robbe/IM2DeepMulti/data/ccs_df_valid.pkl', 'rb'))
-    Valid_AtomEnc = pickle.load(open("/home/robbe/IM2DeepMulti/data/X_valid_AtomEnc-OnlyMultimodals.pickle", "rb"))
-    Valid_Globals = pickle.load(open("/home/robbe/IM2DeepMulti/data/X_valid_GlobalFeatures-OnlyMultimodals.pickle", "rb"))
-    Valid_DiAminoAtomEnc = pickle.load(open('/home/robbe/IM2DeepMulti/data/X_valid_DiAminoAtomEnc-OnlyMultimodals.pickle', 'rb'))
-    Valid_OneHot = pickle.load(open('/home/robbe/IM2DeepMulti/data/X_valid_OneHot-OnlyMultimodals.pickle', 'rb'))
-    y_valid = pickle.load(open('/home/robbe/IM2DeepMulti/data/y_valid-OnlyMultimodals.pickle', 'rb'))
+    ccs_df_valid = pickle.load(open('/home/robbe/IM2DeepMulti/data/ccs_df_valid_OnlyMoreMultimodals.pkl', 'rb'))
+    Valid_AtomEnc = pickle.load(open("/home/robbe/IM2DeepMulti/data/X_valid_AtomEnc-OnlyMoreMultimodals.pickle", "rb"))
+    Valid_Globals = pickle.load(open("/home/robbe/IM2DeepMulti/data/X_valid_GlobalFeatures-OnlyMoreMultimodals.pickle", "rb"))
+    Valid_DiAminoAtomEnc = pickle.load(open('/home/robbe/IM2DeepMulti/data/X_valid_DiAminoAtomEnc-OnlyMoreMultimodals.pickle', 'rb'))
+    Valid_OneHot = pickle.load(open('/home/robbe/IM2DeepMulti/data/X_valid_OneHot-OnlyMoreMultimodals.pickle', 'rb'))
+    y_valid = pickle.load(open('/home/robbe/IM2DeepMulti/data/y_valid-OnlyMoreMultimodals.pickle', 'rb'))
 
     y_valid = np.vstack(y_valid)
 
     # Test
-    ccs_df_test = pickle.load(open('/home/robbe/IM2DeepMulti/data/ccs_df_test.pkl', 'rb'))
-    Test_AtomEnc = pickle.load(open("/home/robbe/IM2DeepMulti/data/X_test_AtomEnc-OnlyMultimodals.pickle", "rb"))
+    ccs_df_test = pickle.load(open('/home/robbe/IM2DeepMulti/data/ccs_df_test_OnlyMoreMultimodals.pkl', 'rb'))
+    Test_AtomEnc = pickle.load(open("/home/robbe/IM2DeepMulti/data/X_test_AtomEnc-OnlyMoreMultimodals.pickle", "rb"))
     Test_Globals = pickle.load(
-        open("/home/robbe/IM2DeepMulti/data/X_test_GlobalFeatures-OnlyMultimodals.pickle", "rb")
+        open("/home/robbe/IM2DeepMulti/data/X_test_GlobalFeatures-OnlyMoreMultimodals.pickle", "rb")
     )
-    Test_DiAminoAtomEnc = pickle.load(open('/home/robbe/IM2DeepMulti/data/X_test_DiAminoAtomEnc-OnlyMultimodals.pickle', 'rb'))
-    Test_OneHot = pickle.load(open('/home/robbe/IM2DeepMulti/data/X_test_OneHot-OnlyMultimodals.pickle', 'rb'))
-    y_test = pickle.load(open('/home/robbe/IM2DeepMulti/data/y_test-OnlyMultimodals.pickle', 'rb'))
+    Test_DiAminoAtomEnc = pickle.load(open('/home/robbe/IM2DeepMulti/data/X_test_DiAminoAtomEnc-OnlyMoreMultimodals.pickle', 'rb'))
+    Test_OneHot = pickle.load(open('/home/robbe/IM2DeepMulti/data/X_test_OneHot-OnlyMoreMultimodals.pickle', 'rb'))
+    y_test = pickle.load(open('/home/robbe/IM2DeepMulti/data/y_test-OnlyMoreMultimodals.pickle', 'rb'))
 
     y_test = np.vstack(y_test)
+    print(y_test.shape)
 
     # Convert the data to PyTorch tensors
     Train_AtomEnc = torch.tensor(Train_AtomEnc, dtype=torch.float32)

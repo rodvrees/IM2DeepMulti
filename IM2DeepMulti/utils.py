@@ -68,11 +68,11 @@ class WeightedLoss(nn.Module):
         return loss1 + loss2
 
 class FlexibleLoss(nn.Module):
-    def __init__(self):
+    def __init__(self, diversity_weight=0.1):
         super(FlexibleLoss, self).__init__()
+        self.diversity_weight = diversity_weight
 
     def forward(self, y1, y2, y_hat1, y_hat2):
-        diversity_weight = 0.4
         loss_fn = nn.L1Loss()
 
         loss1_to_1 = loss_fn(y_hat1, y1)
@@ -97,17 +97,21 @@ class FlexibleLoss(nn.Module):
                 loss1 = loss2_to_1
                 loss2 = loss1_to_2
 
-        diversity_term = torch.mean(torch.abs(y_hat1 - y_hat2))
-        total_loss = (loss1 + loss2) - (diversity_weight * diversity_term)
+        target_diff = torch.abs(y1 - y2)
+        prediction_diff = torch.abs(y_hat1 - y_hat2)
+
+        diff_loss = loss_fn(prediction_diff, target_diff)
+
+        total_loss = (loss1 + loss2) + (self.diversity_weight * diff_loss)
 
         return total_loss
 
 class FlexibleLossSorted(nn.Module):
-    def __init__(self):
+    def __init__(self, diversity_weight=0.1):
         super(FlexibleLossSorted, self).__init__()
+        self.diversity_weight = diversity_weight
 
     def forward(self, y1, y2, y_hat1, y_hat2):
-        diversity_weight = 0.4
         loss_fn = nn.L1Loss()
 
         # Sort the targets and predictions row-wise
@@ -125,8 +129,44 @@ class FlexibleLossSorted(nn.Module):
         loss1 = loss_fn(prediction1, target1)
         loss2 = loss_fn(prediction2, target2)
 
-        diversity_term = torch.mean(torch.abs(prediction1 - prediction2))
-        total_loss = (loss1 + loss2) - (diversity_weight * diversity_term)
+        target_diff = torch.abs(target1 - target2)
+        prediction_diff = torch.abs(prediction1 - prediction2)
+
+        diff_loss = loss_fn(prediction_diff, target_diff)
+
+        total_loss = (loss1 + loss2) + (self.diversity_weight * diff_loss)
+
+        return total_loss
+
+class FlexibleLossWithDynamicWeight(nn.Module):
+    def __init__(self, diversity_weight=0.1):
+        super(FlexibleLossWithDynamicWeight, self).__init__()
+        self.log_sigma_squared1 = nn.Parameter(torch.tensor(0.0))
+        self.log_sigma_squared2 = nn.Parameter(torch.tensor(0.0))
+        self.diversity_weight = diversity_weight
+
+    def forward(self, y1, y2, y_hat1, y_hat2):
+        loss_fn = nn.L1Loss()
+
+        precision1 = torch.exp(-self.log_sigma_squared1)
+        precision2 = torch.exp(-self.log_sigma_squared2)
+
+        mae11 = loss_fn(y_hat1, y1) * precision1
+        mae22 = loss_fn(y_hat2, y2) * precision2
+        mae12 = loss_fn(y_hat1, y2) * precision1
+        mae21 = loss_fn(y_hat2, y1) * precision2
+
+        total_loss_1 = mae11 + mae22
+        total_loss_2 = mae12 + mae21
+
+        target_diff = torch.abs(y1 - y2)
+        prediction_diff = torch.abs(y_hat1 - y_hat2)
+
+        diff_loss = loss_fn(prediction_diff, target_diff)
+
+        min_loss = torch.min(total_loss_1, total_loss_2)
+        regularized_loss = torch.mean(min_loss) + self.log_sigma_squared1 + self.log_sigma_squared2
+        total_loss = regularized_loss + (self.diversity_weight * diff_loss)
 
         return total_loss
 

@@ -336,9 +336,11 @@ class Branch(nn.Module):
     def __init__(self, input_size, output_size):
         super(Branch, self).__init__()
         self.fc1 = nn.Linear(input_size, output_size)
+        self.fcoutput = nn.Linear(output_size, 1)
 
     def forward(self, x):
         x = self.fc1(x)
+        x = self.fcoutput(x)
         return x
 
 class OutputLayer(nn.Module):
@@ -355,6 +357,7 @@ class IM2DeepMultiTransfer(L.LightningModule):
         super(IM2DeepMultiTransfer, self).__init__()
         self.config = config
         self.criterion = criterion
+        self.l1_alpha = config['L1_alpha']
 
         # Load the IM2Deep model
         self.backbone = IM2Deep(BASEMODELCONFIG)
@@ -365,10 +368,12 @@ class IM2DeepMultiTransfer(L.LightningModule):
         self.OneHot = self.backbone.OneHot
 
         self.concat = list(self.backbone.Concat.children())[:-1]
-        # self.Concat1 = DeepLConcat(config, self.backbone.total_input_size)
-        # self.Concat2 = DeepLConcat(config, self.backbone.total_input_size)
-        self.branches = nn.ModuleList([Branch(94, 1), Branch(94, 1)])
+
+        self.branches = nn.ModuleList([Branch(94, config['BranchSize']), Branch(94, config['BranchSize'])])
         # self.outputlayer = OutputLayer(94, 2)
+
+        # self.log_sigma_squared1 = nn.Parameter(torch.tensor([0.0]))
+        # self.log_sigma_squared2 = nn.Parameter(torch.tensor([0.0]))
 
     def DeepLCNN_transfer(self, atom_comp, diatom_comp, global_feats, one_hot):
         atom_comp = atom_comp.permute(0, 2, 1)
@@ -402,21 +407,24 @@ class IM2DeepMultiTransfer(L.LightningModule):
         # y_hat1, y_hat2 = self.outputlayer(CNN_output).split(1, dim=1)
         y_hat1 = self.branches[0](CNN_output)
         y_hat2 = self.branches[1](CNN_output)
-        # y_hat1 = self.Concat1(CNN_output)
-        # y_hat2 = self.Concat2(CNN_output)
+
 
         # Y_hats are of shape (batch_size, 1) but should be (batch_size, )
         y_hat1 = y_hat1.squeeze(1)
         y_hat2 = y_hat2.squeeze(1)
 
         loss = self.criterion(y1, y2, y_hat1, y_hat2)
+
+        l1_norm = sum(p.abs().sum() for p in self.parameters())
+        total_loss = loss + self.l1_alpha * l1_norm
+
         meanmae = MeanMAESorted(y1, y2, y_hat1, y_hat2)
         lowestmae = LowestMAESorted(y1, y2, y_hat1, y_hat2)
 
-        self.log('Train Loss', loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        self.log('Train Loss', total_loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
         self.log('Train Mean MAE', meanmae, on_step=False, on_epoch=True, prog_bar=True, logger=True)
         self.log('Train Lowest MAE', lowestmae, on_step=False, on_epoch=True, prog_bar=True, logger=True)
-        return loss
+        return total_loss
 
     def validation_step(self, batch, batch_idx):
         AtomEnc, DiAtomEnc, Globals, OneHot, y = batch
@@ -427,13 +435,12 @@ class IM2DeepMultiTransfer(L.LightningModule):
         # y_hat1, y_hat2 = self.outputlayer(CNN_output).split(1, dim=1)
         y_hat1 = self.branches[0](CNN_output)
         y_hat2 = self.branches[1](CNN_output)
-        # y_hat1 = self.Concat1(CNN_output)
-        # y_hat2 = self.Concat2(CNN_output)
 
         y_hat1 = y_hat1.squeeze(1)
         y_hat2 = y_hat2.squeeze(1)
 
         loss = self.criterion(y1, y2, y_hat1, y_hat2)
+
         meanmae = MeanMAESorted(y1, y2, y_hat1, y_hat2)
         lowestmae = LowestMAESorted(y1, y2, y_hat1, y_hat2)
 
@@ -451,8 +458,7 @@ class IM2DeepMultiTransfer(L.LightningModule):
         # y_hat1, y_hat2 = self.outputlayer(CNN_output).split(1, dim=1)
         y_hat1 = self.branches[0](CNN_output)
         y_hat2 = self.branches[1](CNN_output)
-        # y_hat1 = self.Concat1(CNN_output)
-        # y_hat2 = self.Concat2(CNN_output)
+
 
         y_hat1 = y_hat1.squeeze(1)
         y_hat2 = y_hat2.squeeze(1)
@@ -473,8 +479,6 @@ class IM2DeepMultiTransfer(L.LightningModule):
         # y_hat1, y_hat2 = self.outputlayer(CNN_output).split(1, dim=1)
         y_hat1 = self.branches[0](CNN_output)
         y_hat2 = self.branches[1](CNN_output)
-        # y_hat1 = self.Concat1(CNN_output)
-        # y_hat2 = self.Concat2(CNN_output)
 
         return torch.hstack([y_hat1, y_hat2])
 

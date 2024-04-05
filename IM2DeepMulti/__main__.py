@@ -17,33 +17,22 @@ from models import IM2DeepMulti, IM2DeepMultiTransfer
 from prepare_data import prepare_data
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.callbacks import BasePredictionWriter, ModelCheckpoint, ModelSummary, RichProgressBar
-from utils import evaluate_predictions, plot_predictions, MultiOutputLoss, PredictionWriter, WeightedLoss, FlexibleLoss, FlexibleLossSorted
+from utils import evaluate_predictions, plot_predictions, MultiOutputLoss, PredictionWriter, WeightedLoss, FlexibleLoss, FlexibleLossSorted, FlexibleLossWithDynamicWeight
 
 def main():
     torch.set_float32_matmul_precision('high')
     config = {
-        "name": "OnlyMultimodals-AllTransferLearnedDualOutputnonBranched",
+        "name": "DynamicWeightedLoss",
         "time": datetime.now().strftime("%Y-%m-%d_%H-%M-%S"),
-        "batch_size": 32,
+        "batch_size": 64,
         "learning_rate": 0.0001,
-        "AtomComp_kernel_size": 4,
-        "DiatomComp_kernel_size": 4,
-        "One_hot_kernel_size": 4,
-        "AtomComp_out_channels_start": 256,
-        "DiatomComp_out_channels_start": 64,
-        "Global_units": 10,
-        "OneHot_out_channels": 1,
-        "Concat_units": 94,
-        "AtomComp_MaxPool_kernel_size": 2,
-        "DiatomComp_MaxPool_kernel_size": 2,
-        "OneHot_MaxPool_kernel_size": 10,
-        "LRelu_negative_slope": 0.013545684190756122,
-        "LRelu_saturation": 40,
-        "L1_alpha": 0.000006056805819927765,
-        "epochs": 300,
+        "diversity_weight": 4.2,    # Should be high when using FlexibleLoss (4.2), much lower when using FlexibleLossSorted (1)
+        "L1_alpha": 0.01, #0.00003 for FlexibleLoss, 0.02 for FlexibleLossSorted
+        "epochs": 100,
         "delta": 0,
         "device": "0",
-        "Use_best_model": False,
+        "Use_best_model": True,
+        'BranchSize': 64 #64 seems to be the best
     }
 
     wandb.init(project="IM2DeepMulti", config=config, name=config["name"] + "-" + config["time"], save_code=False)
@@ -53,15 +42,16 @@ def main():
         prepare_data(config)
     )
 
-    # criterion = MultiOutputLoss(coefficient=0.8)
-    # criterion = FlexibleLoss()
-    criterion = FlexibleLoss()
-    # model = IM2DeepMulti(config, criterion)
+    # criterion = FlexibleLoss(config['diversity_weight'])
+    # criterion = FlexibleLossSorted(config['diversity_weight'])
+    criterion = FlexibleLossWithDynamicWeight(config['diversity_weight'])
+
     model = IM2DeepMultiTransfer(config, criterion)
-    # pred_writer = PredictionWriter(write_interval="epoch", output_dir="/home/robbe/IM2DeepMulti/preds", config=config)
+
     mcp = ModelCheckpoint(
+        dirpath="/home/robbe/IM2DeepMulti/checkpoints/",
         filename=config["name"] + "-" + config["time"],
-        monitor="Val Loss",
+        monitor="Val Mean MAE",
         mode="min",
         save_last=False,
         verbose=False,
@@ -81,6 +71,9 @@ def main():
     trainer.fit(model, train_loader, valid_loader)
     trainer.test(model, test_loader)
     # prediction1, prediction2 = trainer.predict(model, test_loader)
+    # Load best model
+    if config["Use_best_model"]:
+        model = IM2DeepMultiTransfer.load_from_checkpoint(mcp.best_model_path, config=config, criterion=criterion)
     predictions = trainer.predict(model, test_loader) # Predictions is a list of tensors
     predictions = torch.vstack(predictions).detach().cpu().numpy()
     # Targets now looks is of shape (n_samples, 1) where 1 is an array of len 2 but we need to reshape it to (n_samples, 2)

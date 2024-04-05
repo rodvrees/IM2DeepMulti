@@ -36,8 +36,8 @@ def train_test_split(ccs_df, test_split=0.1, output_dir="./", info=""):
     # Get the train and test indices and point to new variables
     ccs_df_train = ccs_df.loc[train_idx, :]
     ccs_df_test = ccs_df.loc[test_idx, :]
-    ccs_df_train.to_pickle("{}/ccs_df_train_{}.pkl".format(output_dir))
-    ccs_df_test.to_pickle("{}/ccs_df_test_{}.pkl".format(output_dir))
+    # ccs_df_train.to_pickle("{}/ccs_df_train_{}.pkl".format(output_dir, info))
+    # ccs_df_test.to_pickle("{}/ccs_df_test_{}.pkl".format(output_dir, info))
     return ccs_df_train, ccs_df_test
 
 def one_hot_encode(charge):
@@ -75,6 +75,7 @@ def get_features(args):
     except:
         if args.test_needed:
             ccs_df_train, ccs_df_test = train_test_split(ccs_df_train, args.test_split, args.output_dir)
+            ccs_df_test.to_pickle("{}/ccs_df_test_{}.pkl".format(args.output_dir, args.info))
         else:
             ccs_df_test = None
 
