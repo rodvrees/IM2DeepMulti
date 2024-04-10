@@ -315,7 +315,7 @@ def evaluate_predictions(predictions, targets):
 
     return mean_mae, lowest_mae, mean_pearson_r, mean_mre
 
-def plot_predictions(predictions, targets, mean_mae, mean_pearson_r, config):
+def plot_predictions(predictions, targets, mean_mae, mean_pearson_r, config, path="/home/robbe/IM2DeepMulti/figs/"):
     # Sort prediction array row-wise
     predictions = np.sort(predictions, axis=1)
     # Sort target array row-wise
@@ -335,7 +335,7 @@ def plot_predictions(predictions, targets, mean_mae, mean_pearson_r, config):
     axes[1].set_xlabel("Observed CCS")
     axes[1].set_ylabel("Predicted CCS")
     plt.suptitle(f"Mean MAE: {mean_mae}, Mean Pearson R: {mean_pearson_r}")
-    plt.savefig("/home/robbe/IM2DeepMulti/figs/{}-{}.png".format(config["name"], config["time"]))
+    plt.savefig(path + "{}-{}.png".format(config["name"], config["time"]))
 
     DeltaPred = abs(predictions1 - predictions2)
     DeltaCCS = abs(targets1 - targets2)
@@ -345,7 +345,7 @@ def plot_predictions(predictions, targets, mean_mae, mean_pearson_r, config):
     plt.plot([min(DeltaCCS), max(DeltaCCS)], [min(DeltaCCS), max(DeltaCCS)], color="red")
     plt.xlabel('Difference between observed CCS')
     plt.ylabel('Difference between predicted CCS')
-    plt.savefig("/home/robbe/IM2DeepMulti/figs/Deltas-{}-{}.png".format(config['name'], config['time']))
+    plt.savefig(path + "Deltas-{}-{}.png".format(config['name'], config['time']))
     plt.close()
 
 
