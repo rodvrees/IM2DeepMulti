@@ -126,13 +126,13 @@ class FlexibleLossSorted(nn.Module):
         prediction1 = predictions[:, 0]
         prediction2 = predictions[:, 1]
 
-        loss1 = loss_fn(prediction1, target1)
-        loss2 = loss_fn(prediction2, target2)
+        loss1 = loss_fn(prediction1.float(), target1.float())
+        loss2 = loss_fn(prediction2.float(), target2.float())
 
         target_diff = torch.abs(target1 - target2)
         prediction_diff = torch.abs(prediction1 - prediction2)
 
-        diff_loss = loss_fn(prediction_diff, target_diff)
+        diff_loss = loss_fn(prediction_diff.float(), target_diff.float())
 
         total_loss = (loss1 + loss2) + (self.diversity_weight * diff_loss)
 
@@ -278,6 +278,11 @@ def MeanPearsonRSorted(y1, y2, y_hat1, y_hat2):
 
     return (r1 + r2) / 2
 
+def MeanMRE(y1, y2, y_hat1, y_hat2):
+    mre1 = torch.mean(torch.abs((y_hat1 - y1) / y1))
+    mre2 = torch.mean(torch.abs((y_hat2 - y2) / y2))
+    return (mre1 + mre2) / 2
+
 BASEMODELCONFIG = {
         "AtomComp_kernel_size": 4,
         "DiatomComp_kernel_size": 4,
@@ -306,8 +311,9 @@ def evaluate_predictions(predictions, targets):
     lowest_mae = LowestMAESorted(targets1, targets2, predictions1, predictions2)
 
     mean_pearson_r = MeanPearsonRSorted(targets1, targets2, predictions1, predictions2)
+    mean_mre = MeanMRE(targets1, targets2, predictions1, predictions2)
 
-    return mean_mae, lowest_mae, mean_pearson_r
+    return mean_mae, lowest_mae, mean_pearson_r, mean_mre
 
 def plot_predictions(predictions, targets, mean_mae, mean_pearson_r, config):
     # Sort prediction array row-wise

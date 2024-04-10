@@ -68,6 +68,7 @@ def get_features(args):
             ccs_df_valid.to_pickle("{}/ccs_df_valid_{}.pkl".format(args.output_dir, args.info))
             ccs_df_train.to_pickle("{}/ccs_df_train_{}.pkl".format(args.output_dir, args.info))
         else:
+            ccs_df_train.to_pickle("{}/ccs_df_train_{}.pkl".format(args.output_dir, args.info))
             ccs_df_valid = None
 
     try:

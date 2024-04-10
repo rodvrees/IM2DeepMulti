@@ -13,7 +13,7 @@ from scipy import stats
 import matplotlib.pyplot as plt
 import copy
 import lightning as L
-from models import IM2DeepMulti, IM2DeepMultiTransfer
+from models import IM2DeepMulti, IM2DeepMultiTransfer, IM2DeepMultiTransferWithAttention
 from prepare_data import prepare_data
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.callbacks import BasePredictionWriter, ModelCheckpoint, ModelSummary, RichProgressBar
@@ -22,17 +22,21 @@ from utils import evaluate_predictions, plot_predictions, MultiOutputLoss, Predi
 def main():
     torch.set_float32_matmul_precision('high')
     config = {
-        "name": "DynamicWeightedLoss",
+        "name": "Sweep",
         "time": datetime.now().strftime("%Y-%m-%d_%H-%M-%S"),
-        "batch_size": 64,
-        "learning_rate": 0.0001,
-        "diversity_weight": 4.2,    # Should be high when using FlexibleLoss (4.2), much lower when using FlexibleLossSorted (1)
-        "L1_alpha": 0.01, #0.00003 for FlexibleLoss, 0.02 for FlexibleLossSorted
-        "epochs": 100,
+        "batch_size": 32,
+        "learning_rate": 0.0000885185503354955,
+        "diversity_weight": 1.2631492541307987,    # Should be high when using FlexibleLoss (4.2), much lower when using FlexibleLossSorted (1)
+        "L1_alpha": 0.00000043707211872154, #0.00003 for FlexibleLoss, 0.02 for FlexibleLossSorted
+        "epochs": 10,
         "delta": 0,
-        "device": "0",
+        "device": "1",
         "Use_best_model": True,
-        'BranchSize': 64 #64 seems to be the best
+        "Add_branch_layer": False,
+        'BranchSize': 58, #64 seems to be the best
+        'Loss_type': 'FlexibleLoss',
+        'Use_attention_output': True,
+        'Use_attention_concat': True,
     }
 
     wandb.init(project="IM2DeepMulti", config=config, name=config["name"] + "-" + config["time"], save_code=False)
@@ -42,11 +46,18 @@ def main():
         prepare_data(config)
     )
 
-    # criterion = FlexibleLoss(config['diversity_weight'])
-    # criterion = FlexibleLossSorted(config['diversity_weight'])
-    criterion = FlexibleLossWithDynamicWeight(config['diversity_weight'])
+    if config['Loss_type'] == 'FlexibleLoss':
+        criterion = FlexibleLoss(config['diversity_weight'])
+    elif config['Loss_type'] == 'FlexibleLossSorted':
+        criterion = FlexibleLossSorted(config['diversity_weight'])
+    # criterion = FlexibleLossWithDynamicWeight(config['diversity_weight'])
 
-    model = IM2DeepMultiTransfer(config, criterion)
+    if config['Use_attention_output'] or config['Use_attention_concat']:
+        model = IM2DeepMultiTransferWithAttention(config, criterion)
+    else:
+        model = IM2DeepMultiTransfer(config, criterion)
+
+    print(model)
 
     mcp = ModelCheckpoint(
         dirpath="/home/robbe/IM2DeepMulti/checkpoints/",
@@ -73,7 +84,11 @@ def main():
     # prediction1, prediction2 = trainer.predict(model, test_loader)
     # Load best model
     if config["Use_best_model"]:
-        model = IM2DeepMultiTransfer.load_from_checkpoint(mcp.best_model_path, config=config, criterion=criterion)
+        if config['Use_attention_output'] or config['Use_attention_concat']:
+            model = IM2DeepMultiTransferWithAttention.load_from_checkpoint(mcp.best_model_path, config=config, criterion=criterion)
+        else:
+            model = IM2DeepMultiTransfer.load_from_checkpoint(mcp.best_model_path, config=config, criterion=criterion)
+
     predictions = trainer.predict(model, test_loader) # Predictions is a list of tensors
     predictions = torch.vstack(predictions).detach().cpu().numpy()
     # Targets now looks is of shape (n_samples, 1) where 1 is an array of len 2 but we need to reshape it to (n_samples, 2)
@@ -81,7 +96,7 @@ def main():
     targets = np.array([x[0] for x in targets])
 
     # Evaluate the predictions
-    test_mean_mae, test_lowest_mae, test_mean_pearson_r = evaluate_predictions(
+    test_mean_mae, test_lowest_mae, test_mean_pearson_r, mean_mre = evaluate_predictions(
         predictions, targets
     )
 
@@ -90,6 +105,7 @@ def main():
             "Test Mean MAE": test_mean_mae,
             "Test Lowest MAE": test_lowest_mae,
             "Test Mean Pearson R": test_mean_pearson_r,
+            "Test Mean MRE": mean_mre,
         }
     )
 

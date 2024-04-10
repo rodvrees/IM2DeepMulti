@@ -333,14 +333,19 @@ class IM2Deep(nn.Module):
         return output
 
 class Branch(nn.Module):
-    def __init__(self, input_size, output_size):
+    def __init__(self, input_size, output_size, add_layer=True):
         super(Branch, self).__init__()
-        self.fc1 = nn.Linear(input_size, output_size)
-        self.fcoutput = nn.Linear(output_size, 1)
+        self.add_layer = add_layer
+        if self.add_layer:
+            self.fc1 = nn.Linear(input_size, output_size)
+            self.fcoutput = nn.Linear(output_size, 1)
+        else:
+            self.fc1 = nn.Linear(input_size, 1)
 
     def forward(self, x):
         x = self.fc1(x)
-        x = self.fcoutput(x)
+        if self.add_layer:
+            x = self.fcoutput(x)
         return x
 
 class OutputLayer(nn.Module):
@@ -351,6 +356,32 @@ class OutputLayer(nn.Module):
     def forward(self, x):
         x = self.fc1(x)
         return x
+
+class SelfAttention(nn.Module):
+    def __init__(self, feature_dim, heads=1):
+        super(SelfAttention, self).__init__()
+        self.feature_dim = feature_dim
+        self.heads = heads
+        self.query_dim = feature_dim // heads
+
+        self.query = nn.Linear(feature_dim, self.query_dim * heads)
+        self.key = nn.Linear(feature_dim, self.query_dim * heads)
+        self.value = nn.Linear(feature_dim, self.query_dim * heads)
+
+        self.fc_out = nn.Linear(self.query_dim * heads, feature_dim)
+
+    def forward(self, x):
+        batch_size, seq_len, feature_dim = x.size()
+        queries = self.query(x).view(batch_size, seq_len, self.heads, self.query_dim)
+        keys = self.key(x).view(batch_size, seq_len, self.heads, self.query_dim)
+        values = self.value(x).view(batch_size, seq_len, self.heads, self.query_dim)
+
+        attention = torch.einsum('bqhd,bkhd->bhqk', [queries, keys]) / (self.query_dim ** 0.5)
+        attention = F.softmax(attention, dim=-1)
+
+        out = torch.einsum('bhqk,bkhd->bqhd', [attention, values]).reshape(batch_size, seq_len, self.feature_dim)
+        out = self.fc_out(out)
+        return out
 
 class IM2DeepMultiTransfer(L.LightningModule):
     def __init__(self, config, criterion):
@@ -369,7 +400,7 @@ class IM2DeepMultiTransfer(L.LightningModule):
 
         self.concat = list(self.backbone.Concat.children())[:-1]
 
-        self.branches = nn.ModuleList([Branch(94, config['BranchSize']), Branch(94, config['BranchSize'])])
+        self.branches = nn.ModuleList([Branch(94, config['BranchSize'], config['Add_branch_layer']), Branch(94, config['BranchSize'], config['Add_branch_layer'])])
         # self.outputlayer = OutputLayer(94, 2)
 
         # self.log_sigma_squared1 = nn.Parameter(torch.tensor([0.0]))
@@ -486,5 +517,146 @@ class IM2DeepMultiTransfer(L.LightningModule):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.config['learning_rate'])
         return optimizer
 
+class IM2DeepMultiTransferWithAttention(L.LightningModule):
+    def __init__(self, config, criterion):
+        super(IM2DeepMultiTransferWithAttention, self).__init__()
+        self.config = config
+        self.criterion = criterion
+        self.l1_alpha = config['L1_alpha']
+
+        # Load the IM2Deep model
+        self.backbone = IM2Deep(BASEMODELCONFIG)
+        self.backbone.load_state_dict(torch.load('/home/robbe/IM2DeepMulti/BestParams_final_model_state_dict.pth'))
+        self.ConvAtomComp = self.backbone.ConvAtomComp
+        self.ConvDiatomComp = self.backbone.ConvDiatomComp
+        self.ConvGlobal = self.backbone.ConvGlobal
+        self.OneHot = self.backbone.OneHot
+
+        self.concat = list(self.backbone.Concat.children())[:-1]
+        self.SelfAttentionConcat = SelfAttention(1841, 1)
+        self.SelfAttentionOutput = SelfAttention(94, 1)
+
+        self.branches = nn.ModuleList([Branch(94, config['BranchSize'], config['Add_branch_layer']), Branch(94, config['BranchSize'], config['Add_branch_layer'])])
+        # self.outputlayer = OutputLayer(94, 2)
+
+        # self.log_sigma_squared1 = nn.Parameter(torch.tensor([0.0]))
+        # self.log_sigma_squared2 = nn.Parameter(torch.tensor([0.0]))
+
+    def DeepLCNN_transfer(self, atom_comp, diatom_comp, global_feats, one_hot):
+        atom_comp = atom_comp.permute(0, 2, 1)
+        diatom_comp = diatom_comp.permute(0, 2, 1)
+        one_hot = one_hot.permute(0, 2, 1)
+
+        for layer in self.ConvAtomComp:
+            atom_comp = layer(atom_comp)
+
+        for layer in self.ConvDiatomComp:
+            diatom_comp = layer(diatom_comp)
+
+        for layer in self.ConvGlobal:
+            global_feats = layer(global_feats)
+
+        for layer in self.OneHot:
+            one_hot = layer(one_hot)
+
+        CNNoutput = torch.cat((atom_comp, diatom_comp, global_feats, one_hot), dim=1)
+
+        if self.config['Use_attention_concat']:
+            CNNoutput = self.SelfAttentionConcat(CNNoutput.unsqueeze(1)).squeeze(1)
+
+        for layer in self.concat:
+            CNNoutput = layer(CNNoutput)
+
+        if self.config['Use_attention_output']:
+            CNNoutput = self.SelfAttentionOutput(CNNoutput.unsqueeze(1)).squeeze(1)
+        return CNNoutput
+
+    def training_step(self, batch, batch_idx):
+        AtomEnc, DiAtomEnc, Globals, OneHot, y = batch
+
+        y1, y2 = y[:, 0], y[:, 1]
+
+        CNN_output = self.DeepLCNN_transfer(AtomEnc, DiAtomEnc, Globals, OneHot)
+        # y_hat1, y_hat2 = self.outputlayer(CNN_output).split(1, dim=1)
+        y_hat1 = self.branches[0](CNN_output)
+        y_hat2 = self.branches[1](CNN_output)
+
+
+        # Y_hats are of shape (batch_size, 1) but should be (batch_size, )
+        y_hat1 = y_hat1.squeeze(1)
+        y_hat2 = y_hat2.squeeze(1)
+
+        loss = self.criterion(y1, y2, y_hat1, y_hat2)
+
+        l1_norm = sum(p.abs().sum() for p in self.parameters())
+        total_loss = loss + self.l1_alpha * l1_norm
+
+        meanmae = MeanMAESorted(y1, y2, y_hat1, y_hat2)
+        lowestmae = LowestMAESorted(y1, y2, y_hat1, y_hat2)
+
+        self.log('Train Loss', total_loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        self.log('Train Mean MAE', meanmae, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        self.log('Train Lowest MAE', lowestmae, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        return total_loss
+
+    def validation_step(self, batch, batch_idx):
+        AtomEnc, DiAtomEnc, Globals, OneHot, y = batch
+
+        y1, y2 = y[:, 0], y[:, 1]
+
+        CNN_output = self.DeepLCNN_transfer(AtomEnc, DiAtomEnc, Globals, OneHot)
+        # y_hat1, y_hat2 = self.outputlayer(CNN_output).split(1, dim=1)
+        y_hat1 = self.branches[0](CNN_output)
+        y_hat2 = self.branches[1](CNN_output)
+
+        y_hat1 = y_hat1.squeeze(1)
+        y_hat2 = y_hat2.squeeze(1)
+
+        loss = self.criterion(y1, y2, y_hat1, y_hat2)
+
+        meanmae = MeanMAESorted(y1, y2, y_hat1, y_hat2)
+        lowestmae = LowestMAESorted(y1, y2, y_hat1, y_hat2)
+
+        self.log('Val Loss', loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        self.log('Val Mean MAE', meanmae, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        self.log('Val Lowest MAE', lowestmae, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        return loss
+
+    def test_step(self, batch, batch_idx):
+        AtomEnc, DiAtomEnc, Globals, OneHot, y = batch
+
+        y1, y2 = y[:, 0], y[:, 1]
+
+        CNN_output = self.DeepLCNN_transfer(AtomEnc, DiAtomEnc, Globals, OneHot)
+        # y_hat1, y_hat2 = self.outputlayer(CNN_output).split(1, dim=1)
+        y_hat1 = self.branches[0](CNN_output)
+        y_hat2 = self.branches[1](CNN_output)
+
+
+        y_hat1 = y_hat1.squeeze(1)
+        y_hat2 = y_hat2.squeeze(1)
+
+        loss = self.criterion(y1, y2, y_hat1, y_hat2)
+        meanmae = MeanMAESorted(y1, y2, y_hat1, y_hat2)
+        lowestmae = LowestMAESorted(y1, y2, y_hat1, y_hat2)
+
+        self.log('Test Loss', loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        self.log('Test Mean MAE', meanmae, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        self.log('Test Lowest MAE', lowestmae, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        return loss
+
+    def predict_step(self, batch):
+        AtomEnc, DiAtomEnc, Globals, OneHot, y = batch
+
+        CNN_output = self.DeepLCNN_transfer(AtomEnc, DiAtomEnc, Globals, OneHot)
+        # y_hat1, y_hat2 = self.outputlayer(CNN_output).split(1, dim=1)
+        y_hat1 = self.branches[0](CNN_output)
+        y_hat2 = self.branches[1](CNN_output)
+
+        return torch.hstack([y_hat1, y_hat2])
+
+    def configure_optimizers(self):
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.config['learning_rate'])
+        return optimizer
 
 

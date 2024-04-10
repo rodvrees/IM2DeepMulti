@@ -78,4 +78,9 @@ def prepare_data(config):
     valid_loader = DataLoader(valid_dataset, batch_size=config["batch_size"], shuffle=False, num_workers=31)
     test_loader = DataLoader(test_dataset, batch_size=config["batch_size"], shuffle=False, num_workers=31)
 
+    del Train_AtomEnc, Train_Globals, Train_DiAminoAtomEnc, Train_OneHot, y_train
+    del Valid_AtomEnc, Valid_Globals, Valid_DiAminoAtomEnc, Valid_OneHot, y_valid
+    del Test_AtomEnc, Test_Globals, Test_DiAminoAtomEnc, Test_OneHot, y_test
+    del train_dataset, valid_dataset, test_dataset
+
     return ccs_df_train, train_loader, ccs_df_valid, valid_loader, ccs_df_test, test_loader
