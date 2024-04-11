@@ -340,12 +340,13 @@ class Branch(nn.Module):
             self.fc1 = nn.Linear(input_size, output_size)
             self.fcoutput = nn.Linear(output_size, 1)
         else:
-            self.fc1 = nn.Linear(input_size, 1)
+            self.fcoutput = nn.Linear(input_size, 1)
 
     def forward(self, x):
-        x = self.fc1(x)
         if self.add_layer:
-            x = self.fcoutput(x)
+            x = self.fc1(x)
+        x = self.fcoutput(x)
+
         return x
 
 class OutputLayer(nn.Module):

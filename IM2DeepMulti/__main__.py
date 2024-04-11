@@ -17,30 +17,30 @@ from models import IM2DeepMulti, IM2DeepMultiTransfer, IM2DeepMultiTransferWithA
 from prepare_data import prepare_data
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.callbacks import BasePredictionWriter, ModelCheckpoint, ModelSummary, RichProgressBar
-from utils import evaluate_predictions, plot_predictions, MultiOutputLoss, PredictionWriter, WeightedLoss, FlexibleLoss, FlexibleLossSorted, FlexibleLossWithDynamicWeight
+from utils import evaluate_predictions, plot_predictions, MultiOutputLoss, PredictionWriter, WeightedLoss, FlexibleLoss, FlexibleLossSorted, FlexibleLossWithDynamicWeight, LogLowestMAE
 
 def main():
     torch.set_float32_matmul_precision('high')
     config = {
-        "name": "Sweep",
+        "name": "SweepBool",
         "time": datetime.now().strftime("%Y-%m-%d_%H-%M-%S"),
-        "batch_size": 32,
-        "learning_rate": 0.0000885185503354955,
-        "diversity_weight": 1.2631492541307987,    # Should be high when using FlexibleLoss (4.2), much lower when using FlexibleLossSorted (1)
-        "L1_alpha": 0.00000043707211872154, #0.00003 for FlexibleLoss, 0.02 for FlexibleLossSorted
-        "epochs": 10,
+        "batch_size": 49,
+        "learning_rate": 0.00014095398719357204,
+        "diversity_weight": 2.1245853839156523,    # Should be high when using FlexibleLoss (4.2), much lower when using FlexibleLossSorted (1)
+        "L1_alpha": 0.00000818161297952125, #0.00003 for FlexibleLoss, 0.02 for FlexibleLossSorted
+        "epochs": 300,
         "delta": 0,
-        "device": "1",
-        "Use_best_model": True,
-        "Add_branch_layer": False,
+        "device": "0",
+        "Use_best_model": 1,
+        "Add_branch_layer": 0,
         'BranchSize': 58, #64 seems to be the best
-        'Loss_type': 'FlexibleLoss',
-        'Use_attention_output': True,
-        'Use_attention_concat': True,
+        'Loss_type': 'FlexibleLossSorted',
+        'Use_attention_output': 1,
+        'Use_attention_concat': 1,
     }
 
     wandb.init(project="IM2DeepMulti", config=config, name=config["name"] + "-" + config["time"], save_code=False)
-    config = wandb.config
+
 
     ccs_df_train, train_loader, ccs_df_valid, valid_loader, ccs_df_test, test_loader = (
         prepare_data(config)
@@ -67,6 +67,7 @@ def main():
         save_last=False,
         verbose=False,
     )
+
     wandb_logger = WandbLogger(project="IM2DeepMulti", log_model=True, save_dir='/home/robbe/IM2DeepMulti/checkpoints')
     wandb_logger.watch(model)
 
@@ -76,12 +77,11 @@ def main():
         enable_checkpointing=True,
         max_epochs=config["epochs"],
         enable_progress_bar=True,
-        callbacks=[mcp, ModelSummary(), RichProgressBar()],
+        callbacks=[mcp, ModelSummary(), RichProgressBar(), LogLowestMAE()],
         logger=wandb_logger,
     )
     trainer.fit(model, train_loader, valid_loader)
     trainer.test(model, test_loader)
-    # prediction1, prediction2 = trainer.predict(model, test_loader)
     # Load best model
     if config["Use_best_model"]:
         if config['Use_attention_output'] or config['Use_attention_concat']:

@@ -17,15 +17,15 @@ import numpy as np
 from scipy import stats
 import matplotlib.pyplot as plt
 
-class DecoyLoss(nn.Module):
+class DecoyLossMin(nn.Module):
     def __init__(self):
-        super(DecoyLoss, self).__init__()
+        super(DecoyLossMin, self).__init__()
 
     def forward(self, y, y_hat1, y_hat2):
         loss_fn = nn.L1Loss()
         loss1 = loss_fn(y, y_hat1)
         loss2 = loss_fn(y, y_hat2)
-        return loss1 + loss2
+        return min(loss1, loss2)
 
 def MeanMAE(y1, y_hat1, y_hat2):
     return (torch.mean(torch.abs(y1 - y_hat1)) + torch.mean(torch.abs(y1 - y_hat2))) / 2
@@ -176,7 +176,7 @@ class IM2DeepMultiTransferWithAttentionDecoy(pl.LightningModule):
 def main():
     torch.set_float32_matmul_precision('high')
     config = {
-            "name": "DecoyModelMultiRandom",
+            "name": "DecoyModelMultiRandomMinLoss",
             "time": datetime.now().strftime("%Y-%m-%d_%H-%M-%S"),
             "batch_size": 32,
             "learning_rate": 0.0000885185503354955,
@@ -193,7 +193,7 @@ def main():
             'Use_attention_concat': True,
         }
 
-    criterion = DecoyLoss()
+    criterion = DecoyLossMin()
     decoy_model = IM2DeepMultiTransferWithAttentionDecoy(config, criterion)
 
     ccs_df_train = pickle.load(open('/home/robbe/IM2DeepMulti/data/ccs_df_train_OnlyMoreMultimodals.pkl', 'rb')).reset_index(drop=True)

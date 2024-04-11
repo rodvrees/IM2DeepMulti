@@ -7,6 +7,8 @@ import os
 import numpy as np
 from lightning.pytorch.callbacks import BasePredictionWriter
 from datetime import datetime
+import wandb
+import lightning.pytorch as L
 
 MAE = nn.L1Loss()
 
@@ -347,5 +349,21 @@ def plot_predictions(predictions, targets, mean_mae, mean_pearson_r, config, pat
     plt.ylabel('Difference between predicted CCS')
     plt.savefig(path + "Deltas-{}-{}.png".format(config['name'], config['time']))
     plt.close()
+
+class LogLowestMAE(L.Callback):
+    def __init__(self):
+        super(LogLowestMAE, self).__init__()
+        self.best_Lowest_MAE = float("inf")
+        self.best_Mean_MAE = float("inf")
+
+    def on_validation_end(self, trainer, pl_module):
+        current_Mean_MAE = trainer.callback_metrics["Val Mean MAE"]
+        current_Lowest_MAE = trainer.callback_metrics["Val Lowest MAE"]
+        if current_Lowest_MAE < self.best_Lowest_MAE:
+            self.best_Lowest_MAE = current_Lowest_MAE
+        if current_Mean_MAE < self.best_Mean_MAE:
+            self.best_Mean_MAE = current_Mean_MAE
+        wandb.log({"Best Mean MAE": self.best_Mean_MAE, "Best Lowest MAE": self.best_Lowest_MAE})
+
 
 
