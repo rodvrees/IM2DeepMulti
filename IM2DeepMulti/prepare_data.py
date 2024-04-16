@@ -74,9 +74,9 @@ def prepare_data(config):
     valid_dataset = TensorDataset(Valid_AtomEnc, Valid_DiAminoAtomEnc, Valid_Globals, Valid_OneHot, y_valid)
     test_dataset = TensorDataset(Test_AtomEnc, Test_DiAminoAtomEnc, Test_Globals, Test_OneHot, y_test)
 
-    train_loader = DataLoader(train_dataset, batch_size=config["batch_size"], shuffle=True, num_workers=31)
-    valid_loader = DataLoader(valid_dataset, batch_size=config["batch_size"], shuffle=False, num_workers=31)
-    test_loader = DataLoader(test_dataset, batch_size=config["batch_size"], shuffle=False, num_workers=31)
+    train_loader = DataLoader(train_dataset, batch_size=config["batch_size"], shuffle=True, num_workers=16)
+    valid_loader = DataLoader(valid_dataset, batch_size=config["batch_size"], shuffle=False, num_workers=16)
+    test_loader = DataLoader(test_dataset, batch_size=config["batch_size"], shuffle=False, num_workers=16)
 
     del Train_AtomEnc, Train_Globals, Train_DiAminoAtomEnc, Train_OneHot, y_train
     del Valid_AtomEnc, Valid_Globals, Valid_DiAminoAtomEnc, Valid_OneHot, y_valid

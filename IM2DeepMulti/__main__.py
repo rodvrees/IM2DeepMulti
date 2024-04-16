@@ -22,13 +22,13 @@ from utils import evaluate_predictions, plot_predictions, MultiOutputLoss, Predi
 def main():
     torch.set_float32_matmul_precision('high')
     config = {
-        "name": "SweepBool",
+        "name": "Sweep",
         "time": datetime.now().strftime("%Y-%m-%d_%H-%M-%S"),
         "batch_size": 49,
         "learning_rate": 0.00014095398719357204,
         "diversity_weight": 2.1245853839156523,    # Should be high when using FlexibleLoss (4.2), much lower when using FlexibleLossSorted (1)
         "L1_alpha": 0.00000818161297952125, #0.00003 for FlexibleLoss, 0.02 for FlexibleLossSorted
-        "epochs": 300,
+        "epochs": 5,
         "delta": 0,
         "device": "0",
         "Use_best_model": 1,
@@ -40,6 +40,8 @@ def main():
     }
 
     wandb.init(project="IM2DeepMulti", config=config, name=config["name"] + "-" + config["time"], save_code=False)
+    config = wandb.config
+    print(config)
 
 
     ccs_df_train, train_loader, ccs_df_valid, valid_loader, ccs_df_test, test_loader = (
@@ -52,7 +54,7 @@ def main():
         criterion = FlexibleLossSorted(config['diversity_weight'])
     # criterion = FlexibleLossWithDynamicWeight(config['diversity_weight'])
 
-    if config['Use_attention_output'] or config['Use_attention_concat']:
+    if config['Use_attention_output'] == 1 or config['Use_attention_concat'] == 1:
         model = IM2DeepMultiTransferWithAttention(config, criterion)
     else:
         model = IM2DeepMultiTransfer(config, criterion)
@@ -84,7 +86,7 @@ def main():
     trainer.test(model, test_loader)
     # Load best model
     if config["Use_best_model"]:
-        if config['Use_attention_output'] or config['Use_attention_concat']:
+        if config['Use_attention_output'] == 1 or config['Use_attention_concat'] == 1:
             model = IM2DeepMultiTransferWithAttention.load_from_checkpoint(mcp.best_model_path, config=config, criterion=criterion)
         else:
             model = IM2DeepMultiTransfer.load_from_checkpoint(mcp.best_model_path, config=config, criterion=criterion)

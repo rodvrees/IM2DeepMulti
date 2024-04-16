@@ -333,7 +333,7 @@ class IM2Deep(nn.Module):
         return output
 
 class Branch(nn.Module):
-    def __init__(self, input_size, output_size, add_layer=True):
+    def __init__(self, input_size, output_size, add_layer=1):
         super(Branch, self).__init__()
         self.add_layer = add_layer
         if self.add_layer:
@@ -343,7 +343,7 @@ class Branch(nn.Module):
             self.fcoutput = nn.Linear(input_size, 1)
 
     def forward(self, x):
-        if self.add_layer:
+        if self.add_layer == 1:
             x = self.fc1(x)
         x = self.fcoutput(x)
 
@@ -401,7 +401,7 @@ class IM2DeepMultiTransfer(L.LightningModule):
 
         self.concat = list(self.backbone.Concat.children())[:-1]
 
-        self.branches = nn.ModuleList([Branch(94, config['BranchSize'], config['Add_branch_layer']), Branch(94, config['BranchSize'], config['Add_branch_layer'])])
+        self.branches = nn.ModuleList([Branch(94, config['BranchSize'], add_layer=config['Add_branch_layer']), Branch(94, config['BranchSize'], add_layer=config['Add_branch_layer'])])
         # self.outputlayer = OutputLayer(94, 2)
 
         # self.log_sigma_squared1 = nn.Parameter(torch.tensor([0.0]))
@@ -534,10 +534,12 @@ class IM2DeepMultiTransferWithAttention(L.LightningModule):
         self.OneHot = self.backbone.OneHot
 
         self.concat = list(self.backbone.Concat.children())[:-1]
-        self.SelfAttentionConcat = SelfAttention(1841, 1)
-        self.SelfAttentionOutput = SelfAttention(94, 1)
+        if self.config['Use_attention_concat'] == 1:
+            self.SelfAttentionConcat = SelfAttention(1841, 1)
+        if self.config['Use_attention_output'] == 1:
+            self.SelfAttentionOutput = SelfAttention(94, 1)
 
-        self.branches = nn.ModuleList([Branch(94, config['BranchSize'], config['Add_branch_layer']), Branch(94, config['BranchSize'], config['Add_branch_layer'])])
+        self.branches = nn.ModuleList([Branch(94, config['BranchSize'], add_layer=config['Add_branch_layer']), Branch(94, config['BranchSize'], add_layer=config['Add_branch_layer'])])
         # self.outputlayer = OutputLayer(94, 2)
 
         # self.log_sigma_squared1 = nn.Parameter(torch.tensor([0.0]))
@@ -562,13 +564,15 @@ class IM2DeepMultiTransferWithAttention(L.LightningModule):
 
         CNNoutput = torch.cat((atom_comp, diatom_comp, global_feats, one_hot), dim=1)
 
-        if self.config['Use_attention_concat']:
+
+        if self.config['Use_attention_concat'] == 1:
             CNNoutput = self.SelfAttentionConcat(CNNoutput.unsqueeze(1)).squeeze(1)
 
         for layer in self.concat:
             CNNoutput = layer(CNNoutput)
 
-        if self.config['Use_attention_output']:
+
+        if self.config['Use_attention_output'] == 1:
             CNNoutput = self.SelfAttentionOutput(CNNoutput.unsqueeze(1)).squeeze(1)
         return CNNoutput
 
