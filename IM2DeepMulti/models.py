@@ -401,7 +401,7 @@ class IM2DeepMultiTransfer(L.LightningModule):
 
         self.concat = list(self.backbone.Concat.children())[:-1]
 
-        self.branches = nn.ModuleList([Branch(94, config['BranchSize'], add_layer=config['Add_branch_layer']), Branch(94, config['BranchSize'], add_layer=config['Add_branch_layer'])])
+        self.branches = nn.ModuleList([Branch(20, config['BranchSize'], add_layer=config['Add_branch_layer']), Branch(20, config['BranchSize'], add_layer=config['Add_branch_layer'])])
         # self.outputlayer = OutputLayer(94, 2)
 
         # self.log_sigma_squared1 = nn.Parameter(torch.tensor([0.0]))
@@ -663,5 +663,11 @@ class IM2DeepMultiTransferWithAttention(L.LightningModule):
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.config['learning_rate'])
         return optimizer
+
+    def forward(self, AtomEnc, DiAtomEnc, Globals, OneHot):
+        cnn_output =  self.DeepLCNN_transfer(AtomEnc, DiAtomEnc, Globals, OneHot)
+        y_hat1 = self.branches[0](cnn_output)
+        y_hat2 = self.branches[1](cnn_output)
+        return torch.hstack([y_hat1, y_hat2])
 
 
